@@ -264,16 +264,20 @@ export default function LibraryScreen() {
                   onPress={() => togglePlaySong(item)}
                   activeOpacity={0.7}
                 >
-                  <View style={[
-                    styles.artworkSquare,
-                    { backgroundColor: isPlayingThis ? accentColor : accentColor + '18' }
-                  ]}>
-                    <Ionicons 
-                      name={isPlayingThis ? "volume-high" : "musical-note"} 
-                      size={20} 
-                      color={isPlayingThis ? "#FFFFFF" : accentColor} 
-                    />
-                  </View>
+                  {item.coverImage ? (
+                    <Image source={{ uri: item.coverImage }} style={[styles.artworkSquare, { borderRadius: 12 }]} />
+                  ) : (
+                    <View style={[
+                      styles.artworkSquare,
+                      { backgroundColor: isPlayingThis ? accentColor : accentColor + '18' }
+                    ]}>
+                      <Ionicons 
+                        name={isPlayingThis ? "volume-high" : "musical-note"} 
+                        size={20} 
+                        color={isPlayingThis ? "#FFFFFF" : accentColor} 
+                      />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.songTitle, { color: isPlayingThis ? accentColor : textColor }]} numberOfLines={1}>
                       {item.title}
@@ -603,16 +607,20 @@ export default function LibraryScreen() {
                   onPress={() => togglePlaySong(item)}
                   activeOpacity={0.7}
                 >
-                  <View style={[
-                    styles.artworkSquare,
-                    { backgroundColor: isPlayingThis ? accentColor : accentColor + '18' }
-                  ]}>
-                    <Ionicons 
-                      name={isPlayingThis ? "volume-high" : (item.isLocalFile ? "document-text" : "musical-note")} 
-                      size={20} 
-                      color={isPlayingThis ? "#FFFFFF" : accentColor} 
-                    />
-                  </View>
+                  {item.coverImage ? (
+                    <Image source={{ uri: item.coverImage }} style={[styles.artworkSquare, { borderRadius: 12 }]} />
+                  ) : (
+                    <View style={[
+                      styles.artworkSquare,
+                      { backgroundColor: isPlayingThis ? accentColor : accentColor + '18' }
+                    ]}>
+                      <Ionicons 
+                        name={isPlayingThis ? "volume-high" : (item.isLocalFile ? "document-text" : "musical-note")} 
+                        size={20} 
+                        color={isPlayingThis ? "#FFFFFF" : accentColor} 
+                      />
+                    </View>
+                  )}
 
                   <View style={styles.metaContainer}>
                     <Text style={[styles.songTitle, { color: isPlayingThis ? accentColor : textColor }]} numberOfLines={1}>

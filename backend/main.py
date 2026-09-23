@@ -75,7 +75,59 @@ async def download_audio(url: str, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
+@app.get("/search")
+async def search_youtube(q: str, limit: int = 12):
+    if not q or not q.strip():
+        raise HTTPException(status_code=400, detail="Search query 'q' is required")
+
+    ydl_opts = {
+        'extract_flat': True,
+        'quiet': True,
+        'no_warnings': True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            search_query = f"ytsearch{min(limit, 25)}:{q.strip()}"
+            result = ydl.extract_info(search_query, download=False)
+            entries = result.get('entries', []) or []
+
+            results = []
+            for entry in entries:
+                if not entry:
+                    continue
+                video_id = entry.get('id')
+                thumb = None
+                if entry.get('thumbnails'):
+                    thumb = entry['thumbnails'][-1].get('url')
+                elif entry.get('thumbnail'):
+                    thumb = entry['thumbnail']
+                elif video_id:
+                    thumb = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+
+                duration_sec = entry.get('duration') or 0
+                if duration_sec:
+                    mins = int(duration_sec // 60)
+                    secs = int(duration_sec % 60)
+                    formatted_duration = f"{mins}:{secs:02d}"
+                else:
+                    formatted_duration = "Audio"
+
+                results.append({
+                    "id": video_id or str(uuid.uuid4()),
+                    "title": entry.get('title') or "Untitled Track",
+                    "channel": entry.get('uploader') or entry.get('channel') or "YouTube Artist",
+                    "duration": formatted_duration,
+                    "duration_sec": duration_sec,
+                    "thumbnail": thumb,
+                    "url": f"https://www.youtube.com/watch?v={video_id}" if video_id else entry.get('url'),
+                })
+            return {"query": q, "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Backend is up and running!"}
+
 

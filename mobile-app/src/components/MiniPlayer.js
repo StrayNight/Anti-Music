@@ -4,7 +4,8 @@ import {
   Text, 
   StyleSheet, 
   TouchableOpacity, 
-  Platform 
+  Platform,
+  Image 
 } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
@@ -43,13 +44,21 @@ export default function MiniPlayer() {
         activeOpacity={0.88}
       >
         {/* Artwork Icon Square */}
-        <View style={[styles.artSquare, { backgroundColor: accentColor + '20' }]}>
-          <Ionicons 
-            name={isPlaying ? "disc" : "musical-note"} 
-            size={20} 
-            color={accentColor} 
+        {currentlyPlayingSong.coverImage ? (
+          <Image 
+            source={{ uri: currentlyPlayingSong.coverImage }} 
+            style={[styles.artSquare, { borderRadius: 10 }]} 
+            resizeMode="cover"
           />
-        </View>
+        ) : (
+          <View style={[styles.artSquare, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons 
+              name={isPlaying ? "disc" : "musical-note"} 
+              size={20} 
+              color={accentColor} 
+            />
+          </View>
+        )}
 
         {/* Track Title & Artist */}
         <View style={styles.trackInfo}>

@@ -6,7 +6,8 @@ import {
   TouchableOpacity, 
   Modal, 
   SafeAreaView, 
-  Platform 
+  Platform,
+  Image 
 } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
@@ -110,9 +111,17 @@ export default function FullScreenPlayer() {
                 shadowColor: accentColor,
               }
             ]}>
-              <View style={[styles.discCircle, { backgroundColor: accentColor + '25' }]}>
-                <Ionicons name="musical-notes" size={72} color={accentColor} />
-              </View>
+              {currentlyPlayingSong.coverImage ? (
+                <Image 
+                  source={{ uri: currentlyPlayingSong.coverImage }} 
+                  style={{ width: '100%', height: '100%', borderRadius: 36 }} 
+                  resizeMode="cover" 
+                />
+              ) : (
+                <View style={[styles.discCircle, { backgroundColor: accentColor + '25' }]}>
+                  <Ionicons name="musical-notes" size={72} color={accentColor} />
+                </View>
+              )}
             </View>
           </View>
 
