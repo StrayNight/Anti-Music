@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { 
   ImageBackground, 
   View, 
@@ -15,6 +15,8 @@ import { PlaylistProvider, PlaylistContext } from './src/context/PlaylistContext
 import SearchScreen from './src/screens/SearchScreen';
 import LibraryScreen from './src/screens/LibraryScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import MiniPlayer from './src/components/MiniPlayer';
+import FullScreenPlayer from './src/components/FullScreenPlayer';
 import { Ionicons } from '@expo/vector-icons';
 
 const TABS = [
@@ -37,6 +39,16 @@ const MainApp = () => {
   const sleepTimerRemaining = playlistContext.sleepTimerRemaining || null;
 
   const [activeTab, setActiveTab] = useState('library');
+
+  // Keep web body background perfectly in sync with dominant canvas
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.body.style.backgroundColor = dominantColor;
+      if (document.documentElement) {
+        document.documentElement.style.backgroundColor = dominantColor;
+      }
+    }
+  }, [dominantColor]);
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
@@ -76,10 +88,8 @@ const MainApp = () => {
         styles.appleHeader, 
         { 
           backgroundColor: backgroundImage 
-            ? 'rgba(255, 255, 255, 0.45)' 
-            : isDark 
-              ? 'rgba(23, 27, 34, 0.85)' 
-              : 'rgba(255, 255, 255, 0.85)',
+            ? (isDark ? 'rgba(23, 27, 34, 0.75)' : 'rgba(255, 255, 255, 0.75)') 
+            : surfaceColor,
           borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'
         }
       ]}>
@@ -99,16 +109,17 @@ const MainApp = () => {
         {renderActiveScreen()}
       </View>
 
+      {/* Floating Apple Mini-Player */}
+      <MiniPlayer />
+
       {/* Apple-style Floating Frosted Pill Tab Bar */}
       <View style={styles.tabBarWrapper}>
         <View style={[
           styles.floatingTabBar,
           {
             backgroundColor: backgroundImage 
-              ? 'rgba(255, 255, 255, 0.82)' 
-              : isDark 
-                ? 'rgba(26, 31, 40, 0.92)' 
-                : 'rgba(255, 255, 255, 0.92)',
+              ? (isDark ? 'rgba(20, 24, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)') 
+              : surfaceColor,
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
             shadowColor: isDark ? '#000000' : '#8E8E93',
           }
@@ -144,6 +155,9 @@ const MainApp = () => {
           })}
         </View>
       </View>
+
+      {/* Expandable Full-Screen Apple Player Modal */}
+      <FullScreenPlayer />
     </SafeAreaView>
   );
 
@@ -154,11 +168,14 @@ const MainApp = () => {
         style={[styles.rootCanvas, { backgroundColor: dominantColor }]}
         resizeMode="cover"
       >
-        <View style={[styles.overlay, { backgroundColor: `rgba(255, 255, 255, ${overlayOpacity})` }]}>
-          <View style={styles.desktopWrapper}>
-            {content}
+          <View style={[
+            styles.overlay, 
+            { backgroundColor: isDark ? `rgba(0, 0, 0, ${overlayOpacity})` : `rgba(255, 255, 255, ${overlayOpacity})` }
+          ]}>
+            <View style={styles.desktopWrapper}>
+              {content}
+            </View>
           </View>
-        </View>
       </ImageBackground>
     );
   }
@@ -189,6 +206,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+    minHeight: Platform.OS === 'web' ? '100vh' : '100%',
   },
   overlay: {
     flex: 1,

@@ -1,6 +1,13 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { playAudio, pauseAudio, resumeAudio, stopAudio } from '../services/AudioPlayer';
+import { 
+  playAudio, 
+  pauseAudio, 
+  resumeAudio, 
+  stopAudio, 
+  seekAudio, 
+  setLoopingAudio 
+} from '../services/AudioPlayer';
 import { pickAudioFromDevice } from '../services/LocalFilePicker';
 
 export const PlaylistContext = createContext({
@@ -8,6 +15,11 @@ export const PlaylistContext = createContext({
   playlists: [],
   currentlyPlayingSong: null,
   isPlaying: false,
+  positionMillis: 0,
+  durationMillis: 1,
+  isLooping: false,
+  isShuffle: false,
+  isPlayerExpanded: false,
   sleepTimerRemaining: null,
   sleepTimerMinutes: null,
   addSongToLibrary: async () => {},
@@ -20,6 +32,12 @@ export const PlaylistContext = createContext({
   shufflePlaylist: async () => {},
   playSong: async () => {},
   togglePlaySong: async () => {},
+  playNextSong: async () => {},
+  playPrevSong: async () => {},
+  seekTo: async () => {},
+  toggleLoop: () => {},
+  toggleShuffle: () => {},
+  setIsPlayerExpanded: () => {},
   startSleepTimer: () => {},
   cancelSleepTimer: () => {},
   importSongFromDevice: async () => {},
@@ -62,21 +80,52 @@ export const PlaylistProvider = ({ children }) => {
   const [allSongs, setAllSongs] = useState(INITIAL_SONGS);
   const [playlists, setPlaylists] = useState(INITIAL_PLAYLISTS);
 
-  // Active Playback State
+  // Playback State
   const [currentlyPlayingSong, setCurrentlyPlayingSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMillis, setPositionMillis] = useState(0);
+  const [durationMillis, setDurationMillis] = useState(1);
+  const [isLooping, setIsLooping] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [playbackQueue, setPlaybackQueue] = useState(INITIAL_SONGS);
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
 
   // Sleep Timer State (seconds remaining)
   const [sleepTimerRemaining, setSleepTimerRemaining] = useState(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(null);
   const timerIntervalRef = useRef(null);
 
+  // Ref to hold current state inside audio status callbacks without stale closures
+  const stateRef = useRef({
+    allSongs,
+    playbackQueue,
+    currentlyPlayingSong,
+    isLooping,
+    isShuffle,
+    isPlaying,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      allSongs,
+      playbackQueue,
+      currentlyPlayingSong,
+      isLooping,
+      isShuffle,
+      isPlaying,
+    };
+  }, [allSongs, playbackQueue, currentlyPlayingSong, isLooping, isShuffle, isPlaying]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
         const storedSongs = await AsyncStorage.getItem(ALL_SONGS_STORAGE_KEY);
         const storedPlaylists = await AsyncStorage.getItem(PLAYLISTS_STORAGE_KEY);
-        if (storedSongs) setAllSongs(JSON.parse(storedSongs));
+        if (storedSongs) {
+          const parsed = JSON.parse(storedSongs);
+          setAllSongs(parsed);
+          setPlaybackQueue(parsed);
+        }
         if (storedPlaylists) setPlaylists(JSON.parse(storedPlaylists));
       } catch (e) {
         console.error("Failed to load playlist data", e);
@@ -92,7 +141,6 @@ export const PlaylistProvider = ({ children }) => {
         setSleepTimerRemaining(prev => {
           if (prev <= 1) {
             clearInterval(timerIntervalRef.current);
-            // STOP MUSIC WHEN TIMER RUNS OUT
             stopAudio();
             setIsPlaying(false);
             setCurrentlyPlayingSong(null);
@@ -123,17 +171,57 @@ export const PlaylistProvider = ({ children }) => {
     setSleepTimerMinutes(null);
   };
 
-  // Playback Control
-  const playSong = async (song) => {
-    setCurrentlyPlayingSong(song);
-    setIsPlaying(true);
-    if (song.uri) {
-      await playAudio(song.uri);
+  // Status callback for expo-av audio updates
+  const handlePlaybackStatusUpdate = (status) => {
+    if (!status.isLoaded) {
+      if (status.error) {
+        console.error(`Playback Error: ${status.error}`);
+      }
+      return;
+    }
+
+    setPositionMillis(status.positionMillis || 0);
+    if (status.durationMillis) {
+      setDurationMillis(status.durationMillis);
+    }
+    setIsPlaying(status.isPlaying);
+
+    // Auto-advance to next song upon completion
+    if (status.didJustFinish) {
+      if (stateRef.current.isLooping) {
+        seekAudio(0);
+        resumeAudio();
+      } else {
+        playNextSong();
+      }
     }
   };
 
-  const togglePlaySong = async (song) => {
-    if (currentlyPlayingSong?.id === song.id) {
+  // Playback Control
+  const playSong = async (song, customQueue = null) => {
+    setCurrentlyPlayingSong(song);
+    setIsPlaying(true);
+    setPositionMillis(0);
+
+    if (customQueue && customQueue.length > 0) {
+      setPlaybackQueue(customQueue);
+    } else if (playbackQueue.length === 0) {
+      setPlaybackQueue(allSongs);
+    }
+
+    if (song.uri) {
+      await playAudio(song.uri, handlePlaybackStatusUpdate);
+    } else {
+      // Simulate progress for sample offline tracks without remote files
+      setDurationMillis(210000); // 3m 30s
+    }
+  };
+
+  const togglePlaySong = async (song = null) => {
+    const target = song || currentlyPlayingSong || playbackQueue[0] || allSongs[0];
+    if (!target) return;
+
+    if (currentlyPlayingSong?.id === target.id) {
       if (isPlaying) {
         await pauseAudio();
         setIsPlaying(false);
@@ -142,8 +230,71 @@ export const PlaylistProvider = ({ children }) => {
         setIsPlaying(true);
       }
     } else {
-      await playSong(song);
+      await playSong(target);
     }
+  };
+
+  const playNextSong = async () => {
+    const queue = stateRef.current.playbackQueue.length > 0 
+      ? stateRef.current.playbackQueue 
+      : stateRef.current.allSongs;
+      
+    if (!queue || queue.length === 0) return;
+
+    const current = stateRef.current.currentlyPlayingSong;
+    if (stateRef.current.isShuffle) {
+      // Pick random song different from current
+      const available = queue.filter(s => s.id !== current?.id);
+      const nextRandom = available.length > 0 
+        ? available[Math.floor(Math.random() * available.length)] 
+        : queue[0];
+      await playSong(nextRandom);
+      return;
+    }
+
+    const currentIndex = queue.findIndex(s => s.id === current?.id);
+    let nextIndex = 0;
+    if (currentIndex !== -1 && currentIndex + 1 < queue.length) {
+      nextIndex = currentIndex + 1;
+    }
+    await playSong(queue[nextIndex]);
+  };
+
+  const playPrevSong = async () => {
+    const queue = stateRef.current.playbackQueue.length > 0 
+      ? stateRef.current.playbackQueue 
+      : stateRef.current.allSongs;
+
+    if (!queue || queue.length === 0) return;
+
+    // If current track is past 3 seconds, restart current track
+    if (positionMillis > 3000) {
+      await seekTo(0);
+      return;
+    }
+
+    const current = stateRef.current.currentlyPlayingSong;
+    const currentIndex = queue.findIndex(s => s.id === current?.id);
+    let prevIndex = queue.length - 1;
+    if (currentIndex > 0) {
+      prevIndex = currentIndex - 1;
+    }
+    await playSong(queue[prevIndex]);
+  };
+
+  const seekTo = async (millis) => {
+    setPositionMillis(millis);
+    await seekAudio(millis);
+  };
+
+  const toggleLoop = () => {
+    const nextVal = !isLooping;
+    setIsLooping(nextVal);
+    setLoopingAudio(nextVal);
+  };
+
+  const toggleShuffle = () => {
+    setIsShuffle(!isShuffle);
   };
 
   const savePlaylists = async (newList) => {
@@ -153,6 +304,7 @@ export const PlaylistProvider = ({ children }) => {
 
   const saveAllSongs = async (newList) => {
     setAllSongs(newList);
+    setPlaybackQueue(newList);
     await AsyncStorage.setItem(ALL_SONGS_STORAGE_KEY, JSON.stringify(newList));
   };
 
@@ -237,7 +389,6 @@ export const PlaylistProvider = ({ children }) => {
     await savePlaylists(updated);
   };
 
-  // Shuffle order: shuffles the song order in the playlist
   const shufflePlaylist = async (playlistId) => {
     const updated = playlists.map(p => {
       if (p.id === playlistId) {
@@ -259,6 +410,11 @@ export const PlaylistProvider = ({ children }) => {
       playlists,
       currentlyPlayingSong,
       isPlaying,
+      positionMillis,
+      durationMillis,
+      isLooping,
+      isShuffle,
+      isPlayerExpanded,
       sleepTimerRemaining,
       sleepTimerMinutes,
       addSongToLibrary,
@@ -271,6 +427,12 @@ export const PlaylistProvider = ({ children }) => {
       shufflePlaylist,
       playSong,
       togglePlaySong,
+      playNextSong,
+      playPrevSong,
+      seekTo,
+      toggleLoop,
+      toggleShuffle,
+      setIsPlayerExpanded,
       startSleepTimer,
       cancelSleepTimer,
       importSongFromDevice,

@@ -31,7 +31,9 @@ export default function SearchScreen() {
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
-  const cardBg = backgroundImage ? 'rgba(255, 255, 255, 0.85)' : surfaceColor;
+  const cardBg = backgroundImage 
+    ? (isDark ? 'rgba(23, 27, 34, 0.88)' : 'rgba(255, 255, 255, 0.88)') 
+    : surfaceColor;
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
 
   const showAlert = (title, msg) => {

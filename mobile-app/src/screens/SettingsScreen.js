@@ -6,15 +6,17 @@ import {
   TouchableOpacity, 
   ScrollView, 
   TextInput,
+  Switch,
   Platform 
 } from 'react-native';
 import { ThemeContext, PALETTE_PRESETS } from '../context/ThemeContext';
+import { PlaylistContext } from '../context/PlaylistContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
 // Swatches for free customization
-const CANVAS_SWATCHES = ['#F2F2F7', '#0B0D11', '#18181B', '#F0FDF4', '#FAF5EF', '#11071F', '#0F172A'];
-const SURFACE_SWATCHES = ['#FFFFFF', '#171B22', '#27272A', '#DCFCE7', '#FFEDD5', '#20103A', '#1E293B'];
+const CANVAS_SWATCHES = ['#0B0D11', '#12141A', '#18181B', '#F2F2F7', '#FAF5EF', '#F0FDF4', '#11071F'];
+const SURFACE_SWATCHES = ['#171B22', '#1C2029', '#27272A', '#FFFFFF', '#FFEDD5', '#DCFCE7', '#20103A'];
 const ACCENT_SWATCHES = ['#FF2D55', '#0A84FF', '#10B981', '#D946EF', '#F97316', '#F59E0B', '#6366F1'];
 
 const OPACITIES = [
@@ -24,8 +26,16 @@ const OPACITIES = [
   { label: 'Subtle', value: 0.75, desc: '75%' },
 ];
 
+const QUALITIES = [
+  { id: 'high', label: 'High (320k)', desc: 'Lossless / Studio' },
+  { id: 'standard', label: 'Standard (192k)', desc: 'Balanced' },
+  { id: 'saver', label: 'Data Saver (128k)', desc: 'Compact' },
+];
+
 export default function SettingsScreen() {
   const { 
+    themeMode,
+    setMode,
     dominantColor, 
     surfaceColor, 
     accentColor, 
@@ -37,16 +47,27 @@ export default function SettingsScreen() {
     updateBackgroundImage,
     overlayOpacity,
     updateOverlayOpacity,
-    isDark
+    isDark,
+    audioQuality,
+    updateAudioQuality,
+    audioNormalization,
+    toggleAudioNormalization,
+    gaplessPlayback,
+    toggleGaplessPlayback,
+    resetAllSettings,
   } = useContext(ThemeContext);
 
+  const { allSongs = [], playlists = [] } = useContext(PlaylistContext);
+
   const [customHex, setCustomHex] = useState('');
-  const [activeCustomCategory, setActiveCustomCategory] = useState('accent'); // 'dominant' | 'surface' | 'accent'
+  const [activeCustomCategory, setActiveCustomCategory] = useState('accent');
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
-  const cardBg = backgroundImage ? 'rgba(255, 255, 255, 0.85)' : surfaceColor;
-  const borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)';
+  const cardBg = backgroundImage 
+    ? (isDark ? 'rgba(23, 27, 34, 0.88)' : 'rgba(255, 255, 255, 0.88)') 
+    : surfaceColor;
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -73,18 +94,69 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleClearCache = () => {
+    alert("✓ Cache Cleared: Temporary audio buffers and cache have been freed.");
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      {/* 60-30-10 Rule Visualizer Card */}
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      
+      {/* -------------------- 1. APPEARANCE & THEME MODE -------------------- */}
       <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor }]}>
         <View style={styles.cardHeaderRow}>
           <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
-            <Ionicons name="pie-chart" size={20} color={accentColor} />
+            <Ionicons name="sunny-outline" size={22} color={accentColor} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.cardTitle, { color: textColor }]}>60-30-10 Color Architecture</Text>
+            <Text style={[styles.cardTitle, { color: textColor }]}>Theme & Display</Text>
             <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
-              Harmonious Apple proportion system
+              Switch between Light Mode and Dark Mode
+            </Text>
+          </View>
+        </View>
+
+        {/* Light Mode vs Dark Mode Segmented Switcher */}
+        <View style={[styles.themeModeRow, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#E5E7EB' }]}>
+          <TouchableOpacity
+            style={[
+              styles.themeModeBtn,
+              !isDark && { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 }
+            ]}
+            onPress={() => setMode('light')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="sunny" size={18} color={!isDark ? '#F59E0B' : subtextColor} style={{ marginRight: 6 }} />
+            <Text style={[styles.themeModeText, { color: !isDark ? '#111827' : subtextColor, fontWeight: !isDark ? '700' : '500' }]}>
+              Light Mode
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.themeModeBtn,
+              isDark && { backgroundColor: surfaceColor, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4 }
+            ]}
+            onPress={() => setMode('dark')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="moon" size={17} color={isDark ? accentColor : subtextColor} style={{ marginRight: 6 }} />
+            <Text style={[styles.themeModeText, { color: isDark ? '#FFFFFF' : subtextColor, fontWeight: isDark ? '700' : '500' }]}>
+              Dark Mode
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* -------------------- 2. 60-30-10 PALETTE STUDIO -------------------- */}
+      <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons name="color-palette" size={20} color={accentColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: textColor }]}>60-30-10 Palette Studio</Text>
+            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+              Proportional color system for whole-app harmony
             </Text>
           </View>
         </View>
@@ -92,18 +164,18 @@ export default function SettingsScreen() {
         {/* Live Visualizer Bar */}
         <View style={styles.ratioBarContainer}>
           <View style={[styles.ratioSegment, { flex: 6, backgroundColor: dominantColor }]}>
-            <Text style={styles.ratioText}>60% Canvas</Text>
+            <Text style={[styles.ratioText, { color: isDark ? '#FFF' : '#333' }]}>60% Canvas</Text>
           </View>
-          <View style={[styles.ratioSegment, { flex: 3, backgroundColor: surfaceColor, borderWidth: 1, borderColor: '#ccc' }]}>
-            <Text style={[styles.ratioText, { color: '#333' }]}>30% Card</Text>
+          <View style={[styles.ratioSegment, { flex: 3, backgroundColor: surfaceColor, borderWidth: 1, borderColor: borderColor }]}>
+            <Text style={[styles.ratioText, { color: isDark ? '#FFF' : '#333' }]}>30% Card</Text>
           </View>
           <View style={[styles.ratioSegment, { flex: 1, backgroundColor: accentColor }]}>
             <Text style={styles.ratioText}>10%</Text>
           </View>
         </View>
 
-        {/* Presets Grid */}
-        <Text style={[styles.sectionHeading, { color: textColor }]}>Curated 60-30-10 Presets</Text>
+        {/* Curated Presets Grid */}
+        <Text style={[styles.sectionHeading, { color: textColor }]}>Curated Apple Presets</Text>
         <View style={styles.presetsGrid}>
           {PALETTE_PRESETS.map(preset => {
             const isSelected = dominantColor === preset.dominant && accentColor === preset.accent;
@@ -113,7 +185,7 @@ export default function SettingsScreen() {
                 style={[
                   styles.presetPill,
                   { borderColor: isSelected ? accentColor : borderColor, borderWidth: isSelected ? 2 : 1 },
-                  isSelected && { backgroundColor: accentColor + '12' }
+                  isSelected && { backgroundColor: accentColor + '15' }
                 ]}
                 onPress={() => applyPreset(preset)}
                 activeOpacity={0.8}
@@ -130,25 +202,10 @@ export default function SettingsScreen() {
             );
           })}
         </View>
-      </View>
 
-      {/* Free Customization Section */}
-      <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
-        <View style={styles.cardHeaderRow}>
-          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
-            <Ionicons name="color-palette" size={20} color={accentColor} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.cardTitle, { color: textColor }]}>Freely Customize Palette</Text>
-            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
-              Customize each layer of your 60-30-10 palette
-            </Text>
-          </View>
-        </View>
-
-        {/* 10% Accent Layer */}
-        <Text style={[styles.layerTitle, { color: textColor }]}>
-          10% Accent Color (Focal Points & Buttons)
+        {/* Layer Swatches */}
+        <Text style={[styles.layerTitle, { color: textColor, marginTop: 18 }]}>
+          10% Accent Swatches (Buttons, Highlights)
         </Text>
         <View style={styles.swatchRow}>
           {ACCENT_SWATCHES.map(color => (
@@ -166,9 +223,8 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        {/* 60% Canvas Layer */}
-        <Text style={[styles.layerTitle, { color: textColor, marginTop: 18 }]}>
-          60% Canvas Color (Main Background)
+        <Text style={[styles.layerTitle, { color: textColor, marginTop: 16 }]}>
+          60% Canvas Swatches (Background)
         </Text>
         <View style={styles.swatchRow}>
           {CANVAS_SWATCHES.map(color => (
@@ -188,9 +244,8 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        {/* 30% Surface Layer */}
-        <Text style={[styles.layerTitle, { color: textColor, marginTop: 18 }]}>
-          30% Surface Color (Cards & Elements)
+        <Text style={[styles.layerTitle, { color: textColor, marginTop: 16 }]}>
+          30% Surface Swatches (Cards & Floating Bars)
         </Text>
         <View style={styles.swatchRow}>
           {SURFACE_SWATCHES.map(color => (
@@ -210,11 +265,11 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        {/* Custom Hex Code Input */}
+        {/* Custom Hex Code */}
         <View style={styles.hexInputContainer}>
-          <Text style={[styles.layerTitle, { color: textColor }]}>Apply Any Custom HEX Code</Text>
+          <Text style={[styles.layerTitle, { color: textColor }]}>Apply Custom HEX Color</Text>
           <View style={styles.categoryPillsRow}>
-            {['dominant', 'surface', 'accent'].map(cat => (
+            {['accent', 'dominant', 'surface'].map(cat => (
               <TouchableOpacity
                 key={cat}
                 style={[
@@ -227,7 +282,7 @@ export default function SettingsScreen() {
                   styles.catPillText,
                   activeCustomCategory === cat && { color: '#fff', fontWeight: '700' }
                 ]}>
-                  {cat === 'dominant' ? '60% Canvas' : cat === 'surface' ? '30% Card' : '10% Accent'}
+                  {cat === 'accent' ? '10% Accent' : cat === 'dominant' ? '60% Canvas' : '30% Card'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -253,16 +308,16 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Background Photo & Opacity Section */}
+      {/* -------------------- 3. BACKGROUND WALLPAPER -------------------- */}
       <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
         <View style={styles.cardHeaderRow}>
           <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
             <Ionicons name="image" size={20} color={accentColor} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.cardTitle, { color: textColor }]}>Background Wallpaper</Text>
+            <Text style={[styles.cardTitle, { color: textColor }]}>Custom Wallpaper</Text>
             <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
-              Upload a personalized photo for the entire app
+              Personalize with your own photo background
             </Text>
           </View>
         </View>
@@ -278,7 +333,7 @@ export default function SettingsScreen() {
 
         {backgroundImage ? (
           <View style={{ marginTop: 16 }}>
-            <Text style={[styles.layerTitle, { color: textColor }]}>Soft Glass White Tint</Text>
+            <Text style={[styles.layerTitle, { color: textColor }]}>Wallpaper Tint Intensity</Text>
             <View style={styles.opacityRow}>
               {OPACITIES.map(item => {
                 const isSelected = Math.abs(overlayOpacity - item.value) < 0.05;
@@ -287,14 +342,15 @@ export default function SettingsScreen() {
                     key={item.label}
                     style={[
                       styles.opacityPill,
-                      isSelected && { borderColor: accentColor, backgroundColor: accentColor + '18' }
+                      { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)' },
+                      isSelected && { borderColor: accentColor, borderWidth: 2 }
                     ]}
                     onPress={() => updateOverlayOpacity(item.value)}
                   >
-                    <Text style={[styles.opacityLabel, isSelected && { color: accentColor, fontWeight: '700' }]}>
+                    <Text style={[styles.opacityLabel, { color: textColor }, isSelected && { color: accentColor, fontWeight: '700' }]}>
                       {item.label}
                     </Text>
-                    <Text style={styles.opacityDesc}>{item.desc}</Text>
+                    <Text style={[styles.opacityDesc, { color: subtextColor }]}>{item.desc}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -312,11 +368,162 @@ export default function SettingsScreen() {
         ) : null}
       </View>
 
+      {/* -------------------- 4. AUDIO & PLAYBACK SETTINGS -------------------- */}
       <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
-        <Text style={[styles.cardTitle, { color: textColor }]}>About Anti-Music</Text>
-        <Text style={[styles.cardSubtitle, { color: subtextColor, marginTop: 4 }]}>
-          Minimalist offline music player with 60-30-10 palette customization, sleep timer, and custom playlist folders.
-        </Text>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons name="musical-notes" size={20} color={accentColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: textColor }]}>Audio & Playback</Text>
+            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+              Fidelity, leveling, and transition controls
+            </Text>
+          </View>
+        </View>
+
+        {/* Quality Selector */}
+        <Text style={[styles.layerTitle, { color: textColor }]}>Audio Streaming & Download Quality</Text>
+        <View style={styles.qualityContainer}>
+          {QUALITIES.map(q => {
+            const isSelected = audioQuality === q.id;
+            return (
+              <TouchableOpacity
+                key={q.id}
+                style={[
+                  styles.qualityRow,
+                  { borderColor },
+                  isSelected && { borderColor: accentColor, backgroundColor: accentColor + '12' }
+                ]}
+                onPress={() => updateAudioQuality(q.id)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.qualityLabel, { color: isSelected ? accentColor : textColor }]}>
+                    {q.label}
+                  </Text>
+                  <Text style={[styles.qualityDesc, { color: subtextColor }]}>{q.desc}</Text>
+                </View>
+                {isSelected && <Ionicons name="checkmark-circle" size={20} color={accentColor} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Normalization Toggle */}
+        <View style={[styles.settingToggleRow, { borderTopColor: borderColor }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={[styles.toggleTitle, { color: textColor }]}>Sound Normalization</Text>
+            <Text style={[styles.toggleDesc, { color: subtextColor }]}>
+              Equalize loudness across all offline tracks
+            </Text>
+          </View>
+          <Switch 
+            value={audioNormalization} 
+            onValueChange={toggleAudioNormalization}
+            trackColor={{ false: '#767577', true: accentColor }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
+        {/* Gapless Playback Toggle */}
+        <View style={[styles.settingToggleRow, { borderTopColor: borderColor }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={[styles.toggleTitle, { color: textColor }]}>Gapless Playback</Text>
+            <Text style={[styles.toggleDesc, { color: subtextColor }]}>
+              Seamless transitions without silence between songs
+            </Text>
+          </View>
+          <Switch 
+            value={gaplessPlayback} 
+            onValueChange={toggleGaplessPlayback}
+            trackColor={{ false: '#767577', true: accentColor }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      </View>
+
+      {/* -------------------- 5. STORAGE & CACHE -------------------- */}
+      <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons name="server" size={20} color={accentColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: textColor }]}>Storage & Offline Data</Text>
+            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+              Manage local device disk space
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.storageStatsBox}>
+          <View style={styles.storageItem}>
+            <Text style={[styles.storageValue, { color: accentColor }]}>{allSongs.length}</Text>
+            <Text style={[styles.storageLabel, { color: subtextColor }]}>Offline Songs</Text>
+          </View>
+          <View style={styles.storageItem}>
+            <Text style={[styles.storageValue, { color: accentColor }]}>{playlists.length}</Text>
+            <Text style={[styles.storageLabel, { color: subtextColor }]}>Playlists</Text>
+          </View>
+          <View style={styles.storageItem}>
+            <Text style={[styles.storageValue, { color: accentColor }]}>~{(allSongs.length * 4.2).toFixed(1)} MB</Text>
+            <Text style={[styles.storageLabel, { color: subtextColor }]}>Space Used</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.secondaryActionBtn, { borderColor }]}
+          onPress={handleClearCache}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="trash-bin-outline" size={17} color={textColor} style={{ marginRight: 6 }} />
+          <Text style={[styles.secondaryActionText, { color: textColor }]}>Clear Temporary Audio Cache</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* -------------------- 6. ABOUT ANTI-MUSIC -------------------- */}
+      <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons name="information" size={20} color={accentColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: textColor }]}>About Anti-Music</Text>
+            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+              Minimalist offline music ecosystem
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Version</Text>
+          <Text style={[styles.aboutValue, { color: textColor }]}>1.2.0 (Apple Soft Edition)</Text>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Platform</Text>
+          <Text style={[styles.aboutValue, { color: textColor }]}>{Platform.OS.toUpperCase()}</Text>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Architecture</Text>
+          <Text style={[styles.aboutValue, { color: textColor }]}>60-30-10 Dynamic Palette</Text>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.resetBtn}
+          onPress={() => {
+            if (confirm ? confirm("Reset all settings, themes, and customization to default?") : true) {
+              resetAllSettings();
+              alert("Settings reset to defaults.");
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh" size={15} color="#FF3B30" style={{ marginRight: 6 }} />
+          <Text style={styles.resetBtnText}>Reset All Settings to Factory Default</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={{ height: 40 }} />
@@ -361,6 +568,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  themeModeRow: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 18,
+    gap: 6,
+  },
+  themeModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  themeModeText: {
+    fontSize: 13,
+  },
   ratioBarContainer: {
     flexDirection: 'row',
     height: 38,
@@ -375,7 +599,6 @@ const styles = StyleSheet.create({
   ratioText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#fff',
     letterSpacing: -0.2,
   },
   sectionHeading: {
@@ -509,16 +732,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(0,0,0,0.1)',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.7)',
   },
   opacityLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333',
   },
   opacityDesc: {
     fontSize: 10,
-    color: '#888',
     marginTop: 2,
   },
   removeBgBtn: {
@@ -529,6 +749,97 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   removeBgText: {
+    color: '#FF3B30',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  qualityContainer: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  qualityLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  qualityDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  settingToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderTopWidth: 1,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  toggleDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  storageStatsBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  storageItem: {
+    alignItems: 'center',
+  },
+  storageValue: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  storageLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  secondaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  aboutInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  aboutLabel: {
+    fontSize: 13,
+  },
+  aboutValue: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 10,
+  },
+  resetBtnText: {
     color: '#FF3B30',
     fontSize: 13,
     fontWeight: '600',

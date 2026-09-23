@@ -68,7 +68,9 @@ export default function LibraryScreen() {
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
-  const cardBg = backgroundImage ? 'rgba(255, 255, 255, 0.88)' : surfaceColor;
+  const cardBg = backgroundImage 
+    ? (isDark ? 'rgba(23, 27, 34, 0.88)' : 'rgba(255, 255, 255, 0.88)') 
+    : surfaceColor;
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
 
   const selectedPlaylist = playlists.find(p => p.id === selectedPlaylistId);
@@ -164,7 +166,7 @@ export default function LibraryScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.deletePill, { borderColor }]}
+            style={[styles.deletePill, { borderColor, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF5F5' }]}
             onPress={() => {
               if (confirm ? confirm(`Delete "${selectedPlaylist.title}"?`) : true) {
                 deletePlaylist(selectedPlaylist.id);
@@ -938,7 +940,6 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 16,
     borderWidth: 1,
-    backgroundColor: '#FFF5F5',
   },
   playlistHeroCard: {
     flexDirection: 'row',
