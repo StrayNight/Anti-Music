@@ -200,7 +200,6 @@ export const PlaylistProvider = ({ children }) => {
   // Playback Control
   const playSong = async (song, customQueue = null) => {
     setCurrentlyPlayingSong(song);
-    setIsPlaying(true);
     setPositionMillis(0);
 
     if (customQueue && customQueue.length > 0) {
@@ -210,14 +209,20 @@ export const PlaylistProvider = ({ children }) => {
     }
 
     if (song.uri) {
-      await playAudio(song.uri, handlePlaybackStatusUpdate);
+      const sound = await playAudio(song.uri, handlePlaybackStatusUpdate);
+      if (sound) {
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(false);
+      }
     } else {
       // Simulate progress for sample offline tracks without remote files
+      setIsPlaying(true);
       setDurationMillis(210000); // 3m 30s
     }
   };
 
-  const togglePlaySong = async (song = null) => {
+  const togglePlaySong = async (song = null, customQueue = null) => {
     const target = song || currentlyPlayingSong || playbackQueue[0] || allSongs[0];
     if (!target) return;
 
@@ -230,7 +235,7 @@ export const PlaylistProvider = ({ children }) => {
         setIsPlaying(true);
       }
     } else {
-      await playSong(target);
+      await playSong(target, customQueue);
     }
   };
 
@@ -309,8 +314,17 @@ export const PlaylistProvider = ({ children }) => {
   };
 
   const addSongToLibrary = async (newSong) => {
+    // Prevent duplicate entries by id or title
+    const exists = allSongs.some(
+      s => (s.id && s.id === newSong.id) || 
+           (s.title && newSong.title && s.title.toLowerCase().trim() === newSong.title.toLowerCase().trim())
+    );
+    if (exists) {
+      return false;
+    }
     const updated = [newSong, ...allSongs];
     await saveAllSongs(updated);
+    return true;
   };
 
   // Import Song directly from local memory/device

@@ -1,4 +1,4 @@
-import React, { useContext, useRef } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -34,29 +34,33 @@ export default function FullScreenPlayer() {
   } = useContext(PlaylistContext);
 
   const scrubberRef = useRef(null);
+  const [scrubberWidth, setScrubberWidth] = useState(0);
 
   if (!currentlyPlayingSong) return null;
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
 
-  // Format milliseconds into MM:SS
+  // Format milliseconds into MM:SS or H:MM:SS
   const formatTime = (millis) => {
     if (!millis || isNaN(millis)) return '0:00';
     const totalSeconds = Math.floor(millis / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    }
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
   const progressRatio = durationMillis > 0 ? Math.min(positionMillis / durationMillis, 1) : 0;
 
-  // Handle tap on scrubber bar to seek
+  // Handle tap on scrubber bar to seek with real measured pixel width
   const handleScrubberPress = (event) => {
     try {
       const { locationX } = event.nativeEvent;
-      // Get approx bar width or use layout width
-      const barWidth = 320; // responsive approx or measured
+      const barWidth = scrubberWidth > 0 ? scrubberWidth : 320;
       const clickRatio = Math.max(0, Math.min(locationX / barWidth, 1));
       const targetMillis = clickRatio * durationMillis;
       seekTo(targetMillis);
@@ -146,6 +150,7 @@ export default function FullScreenPlayer() {
             <TouchableOpacity 
               ref={scrubberRef}
               style={styles.scrubberTrackWrapper} 
+              onLayout={(e) => setScrubberWidth(e.nativeEvent.layout.width)}
               onPress={handleScrubberPress}
               activeOpacity={0.9}
             >

@@ -13,7 +13,17 @@ export const setPlaybackCallback = (callback) => {
 export const playAudio = async (uri, onPlaybackStatusUpdate = null) => {
   try {
     if (soundObject) {
-      await soundObject.unloadAsync();
+      try {
+        soundObject.setOnPlaybackStatusUpdate(null);
+        await soundObject.stopAsync();
+      } catch (e) {
+        // ignore stop error
+      }
+      try {
+        await soundObject.unloadAsync();
+      } catch (e) {
+        // ignore unload error
+      }
       soundObject = null;
     }
 
@@ -22,13 +32,17 @@ export const playAudio = async (uri, onPlaybackStatusUpdate = null) => {
     }
 
     // Configure background audio mode
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      staysActiveInBackground: true,
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch (e) {
+      // Audio mode error gracefully caught on unsupported environments
+    }
 
     const { sound } = await Audio.Sound.createAsync(
       { uri },
@@ -40,6 +54,7 @@ export const playAudio = async (uri, onPlaybackStatusUpdate = null) => {
     return sound;
   } catch (error) {
     console.error("Error playing audio:", error);
+    soundObject = null;
     return null;
   }
 };
@@ -87,8 +102,13 @@ export const setLoopingAudio = async (isLooping) => {
 export const stopAudio = async () => {
   try {
     if (soundObject) {
-      await soundObject.stopAsync();
-      await soundObject.unloadAsync();
+      try {
+        soundObject.setOnPlaybackStatusUpdate(null);
+        await soundObject.stopAsync();
+      } catch (e) {}
+      try {
+        await soundObject.unloadAsync();
+      } catch (e) {}
       soundObject = null;
     }
   } catch (error) {

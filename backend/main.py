@@ -5,10 +5,12 @@ import yt_dlp
 import os
 import uuid
 import glob
+import re
+import hashlib
 
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="YouTube Downloader API")
+app = FastAPI(title="Anti-Music Audio API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,27 +20,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TEMP_DIR = "temp_downloads"
-os.makedirs(TEMP_DIR, exist_ok=True)
+# Persistent Audio Cache Directory
+CACHE_DIR = "audio_cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 class DownloadRequest(BaseModel):
     url: str
 
-def remove_file(path: str):
-    try:
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception as e:
-        print(f"Error removing file {path}: {e}")
+def extract_video_id(url: str) -> str:
+    """Extract YouTube video ID or create safe hash from URL."""
+    match = re.search(r'(?:v=|\/|youtu\.be\/)([0-9A-Za-z_-]{11})', url)
+    if match:
+        return match.group(1)
+    return hashlib.md5(url.encode('utf-8')).hexdigest()[:12]
 
 @app.get("/download")
-async def download_audio(url: str, background_tasks: BackgroundTasks):
+async def download_audio(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
-    file_id = str(uuid.uuid4())
-    # We download the best audio. If m4a is available, great.
-    output_template = os.path.join(TEMP_DIR, f"{file_id}.%(ext)s")
+    video_id = extract_video_id(url)
+
+    # 1. Check if track is already cached on disk (Instant 0ms stream)
+    cached_files = glob.glob(os.path.join(CACHE_DIR, f"{video_id}.*"))
+    if cached_files:
+        cached_file = cached_files[0]
+        ext = cached_file.split('.')[-1]
+        return FileResponse(
+            path=cached_file,
+            media_type=f'audio/{ext}',
+            filename=f"{video_id}.{ext}"
+        )
+
+    # 2. Extract and download into persistent cache
+    output_template = os.path.join(CACHE_DIR, f"{video_id}.%(ext)s")
     
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
@@ -51,20 +66,15 @@ async def download_audio(url: str, background_tasks: BackgroundTasks):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             
-            # Find the downloaded file (since extension can vary)
-            downloaded_files = glob.glob(os.path.join(TEMP_DIR, f"{file_id}.*"))
+            downloaded_files = glob.glob(os.path.join(CACHE_DIR, f"{video_id}.*"))
             if not downloaded_files:
-                raise HTTPException(status_code=500, detail="Failed to download audio")
+                raise HTTPException(status_code=500, detail="Failed to save audio file")
                 
             actual_file = downloaded_files[0]
             ext = actual_file.split('.')[-1]
             
             title = info_dict.get('title', 'Unknown Title')
-            # Sanitize title for filename
             safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-            
-            # Schedule file for deletion after sending
-            background_tasks.add_task(remove_file, actual_file)
             
             return FileResponse(
                 path=actual_file,
@@ -107,9 +117,13 @@ async def search_youtube(q: str, limit: int = 12):
 
                 duration_sec = entry.get('duration') or 0
                 if duration_sec:
-                    mins = int(duration_sec // 60)
+                    hours = int(duration_sec // 3600)
+                    mins = int((duration_sec % 3600) // 60)
                     secs = int(duration_sec % 60)
-                    formatted_duration = f"{mins}:{secs:02d}"
+                    if hours > 0:
+                        formatted_duration = f"{hours}:{mins:02d}:{secs:02d}"
+                    else:
+                        formatted_duration = f"{mins}:{secs:02d}"
                 else:
                     formatted_duration = "Audio"
 
@@ -128,6 +142,4 @@ async def search_youtube(q: str, limit: int = 12):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "message": "Backend is up and running!"}
-
-
+    return {"status": "ok", "message": "Anti-Music Backend is up and running!"}

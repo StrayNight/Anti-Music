@@ -261,7 +261,7 @@ export default function LibraryScreen() {
                 {/* Song Info */}
                 <TouchableOpacity 
                   style={styles.songMainTouch}
-                  onPress={() => togglePlaySong(item)}
+                  onPress={() => togglePlaySong(item, songs)}
                   activeOpacity={0.7}
                 >
                   {item.coverImage ? (
@@ -604,7 +604,7 @@ export default function LibraryScreen() {
                     { backgroundColor: cardBg, borderColor },
                     isPlayingThis && { borderColor: accentColor, borderWidth: 1.5 }
                   ]}
-                  onPress={() => togglePlaySong(item)}
+                  onPress={() => togglePlaySong(item, allSongs)}
                   activeOpacity={0.7}
                 >
                   {item.coverImage ? (
