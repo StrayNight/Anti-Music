@@ -34,7 +34,21 @@ export default function SearchScreen() {
     isDark 
   } = useContext(ThemeContext);
 
-  const { addSongToLibrary, allSongs = [], currentlyPlayingSong } = useContext(PlaylistContext);
+  const { 
+    addSongToLibrary, 
+    allSongs = [], 
+    currentlyPlayingSong,
+    isPlaying = false,
+    togglePlaySong,
+    searchHistory = [],
+    addSearchQuery,
+    removeSearchQuery,
+    clearSearchHistory,
+    startDownloadTracking,
+    updateDownloadTracking,
+    completeDownloadTracking,
+    cancelDownloadTracking,
+  } = useContext(PlaylistContext);
 
   // Mode: 'search' | 'link'
   const [activeMode, setActiveMode] = useState('search');
@@ -92,6 +106,11 @@ export default function SearchScreen() {
       return;
     }
 
+    // Add query to search history
+    if (addSearchQuery) {
+      addSearchQuery(q);
+    }
+
     setIsSearching(true);
     setHasSearched(true);
 
@@ -114,6 +133,16 @@ export default function SearchScreen() {
   // Download a single track from Search Results
   const handleDownloadTrack = async (track) => {
     setDownloadingId(track.id);
+    if (startDownloadTracking) {
+      startDownloadTracking(track.title);
+    }
+
+    const t1 = setTimeout(() => {
+      if (updateDownloadTracking) updateDownloadTracking(45, 'Extracting audio stream...');
+    }, 700);
+    const t2 = setTimeout(() => {
+      if (updateDownloadTracking) updateDownloadTracking(80, 'Converting 320kbps MP3...');
+    }, 1800);
 
     try {
       const targetUrl = `${getBackendUrl()}/download?url=${encodeURIComponent(track.url)}`;
@@ -130,16 +159,23 @@ export default function SearchScreen() {
         await addSongToLibrary(newSong);
         window.open(targetUrl, '_blank');
         setDownloadedIds(prev => new Set(prev).add(track.id));
-        showAlert("Download Started", `"${track.title}" has been saved to your library!`);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        if (completeDownloadTracking) completeDownloadTracking(track.title);
       } else {
         const fileUri = FileSystem.documentDirectory + `song_${Date.now()}.mp3`;
         const { uri } = await FileSystem.downloadAsync(targetUrl, fileUri);
         newSong.uri = uri;
         await addSongToLibrary(newSong);
         setDownloadedIds(prev => new Set(prev).add(track.id));
-        showAlert("Saved Offline", `"${track.title}" is ready to play in your Library.`);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        if (completeDownloadTracking) completeDownloadTracking(track.title);
       }
     } catch (err) {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (cancelDownloadTracking) cancelDownloadTracking(err.message);
       console.error("Download error:", err);
       showAlert("Download Failed", err.message || "Failed to download this track.");
     } finally {
@@ -162,6 +198,14 @@ export default function SearchScreen() {
 
     setDirectLoading(true);
     setDirectStatus('Connecting to Python server & converting audio...');
+    if (startDownloadTracking) startDownloadTracking('YouTube Track');
+
+    const dt1 = setTimeout(() => {
+      if (updateDownloadTracking) updateDownloadTracking(45, 'Extracting YouTube stream...');
+    }, 700);
+    const dt2 = setTimeout(() => {
+      if (updateDownloadTracking) updateDownloadTracking(80, 'Encoding offline MP3...');
+    }, 1900);
 
     try {
       const targetUrl = `${getBackendUrl()}/download?url=${encodeURIComponent(trimmed)}`;
@@ -183,10 +227,14 @@ export default function SearchScreen() {
       };
       await addSongToLibrary(newSong);
 
+      clearTimeout(dt1);
+      clearTimeout(dt2);
+      if (completeDownloadTracking) completeDownloadTracking(newSong.title);
+
       if (Platform.OS === 'web') {
         window.open(targetUrl, '_blank');
         setDirectLoading(false);
-        setDirectStatus('✓ Download started and added to your Library!');
+        setDirectStatus('✓ Download completed and added to your Library!');
         setDirectUrl('');
       } else {
         const fileUri = FileSystem.documentDirectory + `song_${Date.now()}.mp3`;
@@ -198,6 +246,9 @@ export default function SearchScreen() {
         setDirectUrl('');
       }
     } catch (error) {
+      clearTimeout(dt1);
+      clearTimeout(dt2);
+      if (cancelDownloadTracking) cancelDownloadTracking(error.message);
       setDirectLoading(false);
       setDirectStatus('');
       console.error(error);
@@ -312,6 +363,48 @@ export default function SearchScreen() {
               )}
             </TouchableOpacity>
 
+            {/* Recent Searches History Chips */}
+            {searchHistory && searchHistory.length > 0 && (
+              <View style={styles.historySection}>
+                <View style={styles.historyHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="time-outline" size={14} color={accentColor} />
+                    <Text style={[styles.historyHeading, { color: subtextColor }]}>Recent Searches</Text>
+                  </View>
+                  <TouchableOpacity onPress={clearSearchHistory} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.historyClearText, { color: accentColor }]}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyScroll}>
+                  {searchHistory.map((q, idx) => (
+                    <View 
+                      key={`${q}_${idx}`} 
+                      style={[styles.historyChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)', borderColor }]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSearchQuery(q);
+                          handleSearch(q);
+                        }}
+                        activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Text style={[styles.historyChipText, { color: textColor }]}>{q}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => removeSearchQuery(q)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={{ marginLeft: 6 }}
+                      >
+                        <Ionicons name="close-circle" size={14} color={subtextColor} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {/* Quick Inspiration Tags */}
             <Text style={[styles.quickTagsHeading, { color: subtextColor }]}>Quick Inspiration:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagsScroll}>
@@ -398,6 +491,18 @@ export default function SearchScreen() {
                           {item.channel}
                         </Text>
                       </View>
+
+                      {/* Downloading Live Progress Indicator Inside Card */}
+                      {isDownloadingThis && (
+                        <View style={styles.inlineDownloadProgress}>
+                          <View style={[styles.inlineProgressTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                            <View style={[styles.inlineProgressFill, { backgroundColor: accentColor }]} />
+                          </View>
+                          <Text style={[styles.inlineProgressText, { color: accentColor }]}>
+                            Downloading audio stream...
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     {/* Download Action Button */}
@@ -405,14 +510,17 @@ export default function SearchScreen() {
                       style={[
                         styles.downloadActionBtn,
                         { backgroundColor: inLibrary ? 'rgba(16, 185, 129, 0.15)' : accentColor },
-                        isDownloadingThis && { opacity: 0.7 }
+                        isDownloadingThis && { opacity: 0.95, backgroundColor: accentColor, minWidth: 84 }
                       ]}
                       onPress={() => handleDownloadTrack(item)}
                       disabled={isDownloadingThis || inLibrary}
                       activeOpacity={0.8}
                     >
                       {isDownloadingThis ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                          <Text style={styles.downloadBtnText}>Saving</Text>
+                        </View>
                       ) : inLibrary ? (
                         <>
                           <Ionicons name="checkmark-circle" size={16} color="#10B981" style={{ marginRight: 4 }} />
@@ -428,6 +536,60 @@ export default function SearchScreen() {
                   </View>
                 );
               })}
+            </View>
+          )}
+
+          {/* Recently Downloaded Shelf */}
+          {allSongs && allSongs.length > 0 && (
+            <View style={[styles.recentDownloadsCard, { backgroundColor: cardBg, borderColor }]}>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.iconCircle, { backgroundColor: '#10B98120' }]}>
+                  <Ionicons name="cloud-done" size={20} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: textColor }]}>Recently Downloaded</Text>
+                  <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+                    {allSongs.length} offline audio songs in your library
+                  </Text>
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentShelfScroll}>
+                {allSongs.slice(0, 10).map((song) => {
+                  const isPlayingThis = currentlyPlayingSong?.id === song.id && isPlaying;
+                  return (
+                    <TouchableOpacity
+                      key={song.id}
+                      style={[styles.shelfCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor }]}
+                      onPress={() => togglePlaySong(song, allSongs)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.shelfArtWrapper}>
+                        {song.coverImage ? (
+                          <Image source={{ uri: song.coverImage }} style={styles.shelfArt} resizeMode="cover" />
+                        ) : (
+                          <View style={[styles.shelfArt, { backgroundColor: accentColor + '20', alignItems: 'center', justifyContent: 'center' }]}>
+                            <Ionicons name="musical-notes" size={26} color={accentColor} />
+                          </View>
+                        )}
+
+                        <View style={styles.shelfPlayOverlay}>
+                          <View style={[styles.shelfPlayCircle, { backgroundColor: isPlayingThis ? '#10B981' : accentColor }]}>
+                            <Ionicons name={isPlayingThis ? "pause" : "play"} size={14} color="#FFFFFF" style={{ marginLeft: isPlayingThis ? 0 : 2 }} />
+                          </View>
+                        </View>
+                      </View>
+
+                      <Text style={[styles.shelfTitle, { color: isPlayingThis ? accentColor : textColor }]} numberOfLines={1}>
+                        {song.title}
+                      </Text>
+                      <Text style={[styles.shelfArtist, { color: subtextColor }]} numberOfLines={1}>
+                        {song.artist || 'Offline Audio'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -479,7 +641,10 @@ export default function SearchScreen() {
               activeOpacity={0.85}
             >
               {directLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <>
+                  <ActivityIndicator color="#FFFFFF" size="small" style={{ marginRight: 8 }} />
+                  <Text style={styles.applePillButtonText}>Downloading Audio...</Text>
+                </>
               ) : (
                 <>
                   <Ionicons name="arrow-down-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
@@ -488,9 +653,25 @@ export default function SearchScreen() {
               )}
             </TouchableOpacity>
 
-            {directStatus ? (
-              <View style={[styles.statusBadge, { backgroundColor: accentColor + '15' }]}>
-                <Text style={[styles.statusBadgeText, { color: accentColor }]}>{directStatus}</Text>
+            {directLoading ? (
+              <View style={[styles.directProgressCard, { backgroundColor: accentColor + '12', borderColor: accentColor + '30' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <ActivityIndicator size="small" color={accentColor} />
+                  <Text style={[styles.directProgressTitle, { color: accentColor }]}>
+                    Downloading & Converting...
+                  </Text>
+                </View>
+                <View style={[styles.directProgressBarTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                  <View style={[styles.directProgressBarFill, { backgroundColor: accentColor }]} />
+                </View>
+                <Text style={[styles.directProgressSubtitle, { color: subtextColor }]}>
+                  {directStatus || 'Extracting high-quality audio stream...'}
+                </Text>
+              </View>
+            ) : directStatus ? (
+              <View style={[styles.statusBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={[styles.statusBadgeText, { color: '#10B981' }]}>{directStatus}</Text>
               </View>
             ) : null}
           </View>
@@ -807,5 +988,144 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
+  },
+  historySection: {
+    marginTop: 16,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  historyHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  historyClearText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  historyScroll: {
+    flexDirection: 'row',
+  },
+  historyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  historyChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  recentDownloadsCard: {
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  recentShelfScroll: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  shelfCard: {
+    width: 120,
+    marginRight: 12,
+    padding: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  shelfArtWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  shelfArt: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  shelfPlayOverlay: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+  },
+  shelfPlayCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  shelfTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  shelfArtist: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  inlineDownloadProgress: {
+    marginTop: 6,
+  },
+  inlineProgressTrack: {
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  inlineProgressFill: {
+    height: '100%',
+    width: '70%',
+    borderRadius: 2,
+  },
+  inlineProgressText: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  directProgressCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 14,
+  },
+  directProgressTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  directProgressBarTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  directProgressBarFill: {
+    height: '100%',
+    width: '65%',
+    borderRadius: 2,
+  },
+  directProgressSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

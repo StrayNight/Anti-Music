@@ -15,6 +15,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import SwipeablePlaylistItem from '../components/SwipeablePlaylistItem';
 
 const TIMER_PRESETS = [
   { label: '15 min', minutes: 15 },
@@ -41,6 +42,10 @@ export default function LibraryScreen() {
     isPlaying = false,
     sleepTimerRemaining = null,
     sleepTimerMinutes = null,
+    likedSongIds = [],
+    likedSongs = [],
+    toggleLikeSong = async () => {},
+    isSongLiked = () => false,
     createPlaylist = async () => {},
     deletePlaylist = async () => {},
     updatePlaylistCover = async () => {},
@@ -58,6 +63,8 @@ export default function LibraryScreen() {
   const [activeSegment, setActiveSegment] = useState('playlists');
   // Selected playlist for detailed view (null = top list)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
+  const [activeSwipeId, setActiveSwipeId] = useState(null);
+  const [draggingIndex, setDraggingIndex] = useState(null);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -73,7 +80,16 @@ export default function LibraryScreen() {
     : surfaceColor;
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
 
-  const selectedPlaylist = playlists.find(p => p.id === selectedPlaylistId);
+  const isLikedView = selectedPlaylistId === '__liked_songs__';
+  const selectedPlaylist = isLikedView
+    ? {
+        id: '__liked_songs__',
+        title: 'Liked Songs',
+        coverImage: null,
+        songs: likedSongs,
+        isSmart: true,
+      }
+    : playlists.find(p => p.id === selectedPlaylistId);
 
   // Format Sleep Timer countdown (e.g. 14:59)
   const formatTimerTime = (seconds) => {
@@ -165,37 +181,45 @@ export default function LibraryScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.deletePill, { borderColor, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF5F5' }]}
-            onPress={() => {
-              if (confirm ? confirm(`Delete "${selectedPlaylist.title}"?`) : true) {
-                deletePlaylist(selectedPlaylist.id);
-                setSelectedPlaylistId(null);
-              }
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-          </TouchableOpacity>
+          {!selectedPlaylist.isSmart && (
+            <TouchableOpacity 
+              style={[styles.deletePill, { borderColor, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF5F5' }]}
+              onPress={() => {
+                if (confirm ? confirm(`Delete "${selectedPlaylist.title}"?`) : true) {
+                  deletePlaylist(selectedPlaylist.id);
+                  setSelectedPlaylistId(null);
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Playlist Hero Banner */}
         <View style={[styles.playlistHeroCard, { backgroundColor: cardBg, borderColor }]}>
           <TouchableOpacity 
-            onPress={handleUpdateCurrentCover}
+            onPress={selectedPlaylist.isSmart ? null : handleUpdateCurrentCover}
             style={styles.heroCoverWrapper}
-            activeOpacity={0.85}
+            activeOpacity={selectedPlaylist.isSmart ? 1 : 0.85}
           >
-            {selectedPlaylist.coverImage ? (
+            {selectedPlaylist.isSmart ? (
+              <View style={[styles.heroPlaceholder, { backgroundColor: '#FF2D5520' }]}>
+                <Ionicons name="heart" size={44} color="#FF2D55" />
+              </View>
+            ) : selectedPlaylist.coverImage ? (
               <Image source={{ uri: selectedPlaylist.coverImage }} style={styles.heroCoverImage} />
             ) : (
               <View style={[styles.heroPlaceholder, { backgroundColor: accentColor + '20' }]}>
                 <Ionicons name="folder" size={44} color={accentColor} />
               </View>
             )}
-            <View style={styles.editCoverBadge}>
-              <Ionicons name="camera" size={13} color="#FFFFFF" />
-            </View>
+            {!selectedPlaylist.isSmart && (
+              <View style={styles.editCoverBadge}>
+                <Ionicons name="camera" size={13} color="#FFFFFF" />
+              </View>
+            )}
           </TouchableOpacity>
 
           <View style={styles.heroMeta}>
@@ -203,10 +227,10 @@ export default function LibraryScreen() {
               {selectedPlaylist.title}
             </Text>
             <Text style={[styles.playlistHeroCount, { color: subtextColor }]}>
-              {songs.length} tracks • Custom Order
+              {songs.length} {selectedPlaylist.isSmart ? 'favorites • Swipe left to remove' : 'tracks • Drag ☰ to reorder • Swipe left to delete'}
             </Text>
-            <Text style={[styles.editCoverHint, { color: accentColor }]}>
-              Tap cover to change photo
+            <Text style={[styles.editCoverHint, { color: selectedPlaylist.isSmart ? '#FF2D55' : accentColor }]}>
+              {selectedPlaylist.isSmart ? 'Auto-synced from Liked Songs' : 'Tap cover to change photo'}
             </Text>
           </View>
         </View>
@@ -214,114 +238,105 @@ export default function LibraryScreen() {
         {/* Quick Toolbar: Shuffle Order & Add Songs */}
         <View style={styles.playlistToolbar}>
           <TouchableOpacity 
-            style={[styles.toolPillBtn, { backgroundColor: accentColor }]}
+            style={[styles.toolPillBtn, { backgroundColor: selectedPlaylist.isSmart ? '#FF2D55' : accentColor }]}
             onPress={() => {
-              shufflePlaylist(selectedPlaylist.id);
+              if (selectedPlaylist.isSmart) {
+                if (songs.length > 0) togglePlaySong(songs[0], songs);
+              } else {
+                shufflePlaylist(selectedPlaylist.id);
+              }
             }}
             activeOpacity={0.85}
           >
-            <Ionicons name="shuffle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.toolPillTextWhite}>Shuffle Order</Text>
+            <Ionicons name={selectedPlaylist.isSmart ? "play" : "shuffle"} size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.toolPillTextWhite}>{selectedPlaylist.isSmart ? "Play All" : "Shuffle Order"}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.toolPillBtnSecondary, { backgroundColor: cardBg, borderColor }]}
-            onPress={() => setShowAddSongsModal(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="add-circle-outline" size={18} color={accentColor} style={{ marginRight: 6 }} />
-            <Text style={[styles.toolPillTextSecondary, { color: accentColor }]}>Add Songs</Text>
-          </TouchableOpacity>
+          {!selectedPlaylist.isSmart ? (
+            <TouchableOpacity 
+              style={[styles.toolPillBtnSecondary, { backgroundColor: cardBg, borderColor }]}
+              onPress={() => setShowAddSongsModal(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={accentColor} style={{ marginRight: 6 }} />
+              <Text style={[styles.toolPillTextSecondary, { color: accentColor }]}>Add Songs</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.toolPillBtnSecondary, { backgroundColor: cardBg, borderColor }]}
+              onPress={() => {
+                if (songs.length > 0) {
+                  const shuffled = [...songs].sort(() => Math.random() - 0.5);
+                  togglePlaySong(shuffled[0], shuffled);
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="shuffle" size={18} color="#FF2D55" style={{ marginRight: 6 }} />
+              <Text style={[styles.toolPillTextSecondary, { color: '#FF2D55' }]}>Shuffle</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Track List with Move Up/Down Order Controls */}
+        {/* Track List with Drag-and-Drop Reordering and Swipe-to-Delete */}
         <FlatList
           data={songs}
           keyExtractor={(item, index) => `${item.id}_${index}`}
+          scrollEnabled={draggingIndex === null}
           contentContainerStyle={[styles.listContent, { paddingBottom: currentlyPlayingSong ? 180 : 80 }]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => {
             const isPlayingThis = currentlyPlayingSong?.id === item.id && isPlaying;
-            const isFirst = index === 0;
-            const isLast = index === songs.length - 1;
 
             return (
-              <View 
-                style={[
-                  styles.reorderSongRow,
-                  { backgroundColor: cardBg, borderColor },
-                  isPlayingThis && { borderColor: accentColor, borderWidth: 1.5 }
-                ]}
-              >
-                {/* Order Index Badge */}
-                <View style={styles.orderBadge}>
-                  <Text style={[styles.orderNumber, { color: subtextColor }]}>{index + 1}</Text>
-                </View>
-
-                {/* Song Info */}
-                <TouchableOpacity 
-                  style={styles.songMainTouch}
-                  onPress={() => togglePlaySong(item, songs)}
-                  activeOpacity={0.7}
-                >
-                  {item.coverImage ? (
-                    <Image source={{ uri: item.coverImage }} style={[styles.artworkSquare, { borderRadius: 12 }]} />
-                  ) : (
-                    <View style={[
-                      styles.artworkSquare,
-                      { backgroundColor: isPlayingThis ? accentColor : accentColor + '18' }
-                    ]}>
-                      <Ionicons 
-                        name={isPlayingThis ? "volume-high" : "musical-note"} 
-                        size={20} 
-                        color={isPlayingThis ? "#FFFFFF" : accentColor} 
-                      />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.songTitle, { color: isPlayingThis ? accentColor : textColor }]} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.songArtist, { color: subtextColor }]} numberOfLines={1}>
-                      {item.artist} • {item.duration}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Move Up / Down Buttons (Choose Order) */}
-                <View style={styles.orderControlsRow}>
-                  <TouchableOpacity
-                    style={[styles.orderArrowBtn, isFirst && { opacity: 0.25 }]}
-                    onPress={() => reorderSongInPlaylist(selectedPlaylist.id, index, index - 1)}
-                    disabled={isFirst}
-                  >
-                    <Ionicons name="chevron-up" size={17} color={textColor} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.orderArrowBtn, isLast && { opacity: 0.25 }]}
-                    onPress={() => reorderSongInPlaylist(selectedPlaylist.id, index, index + 1)}
-                    disabled={isLast}
-                  >
-                    <Ionicons name="chevron-down" size={17} color={textColor} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Remove from Playlist Button */}
-                <TouchableOpacity
-                  style={styles.removeSongBtn}
-                  onPress={() => removeSongFromPlaylist(selectedPlaylist.id, index)}
-                >
-                  <Ionicons name="close" size={18} color="#FF3B30" />
-                </TouchableOpacity>
-              </View>
+              <SwipeablePlaylistItem
+                key={`${item.id}_${index}`}
+                item={item}
+                index={index}
+                totalCount={songs.length}
+                isPlayingThis={isPlayingThis}
+                isSmart={!!selectedPlaylist.isSmart}
+                cardBg={cardBg}
+                surfaceColor={surfaceColor}
+                borderColor={borderColor}
+                textColor={textColor}
+                subtextColor={subtextColor}
+                accentColor={selectedPlaylist.isSmart ? '#FF2D55' : accentColor}
+                activeSwipeId={activeSwipeId}
+                setActiveSwipeId={setActiveSwipeId}
+                onPlay={() => togglePlaySong(item, songs)}
+                onDelete={() => {
+                  if (selectedPlaylist.isSmart) {
+                    toggleLikeSong(item.id);
+                  } else {
+                    removeSongFromPlaylist(selectedPlaylist.id, index);
+                  }
+                }}
+                onReorder={(fromIdx, toIdx) => {
+                  reorderSongInPlaylist(selectedPlaylist.id, fromIdx, toIdx);
+                }}
+                onToggleLike={() => toggleLikeSong(item.id)}
+                isLiked={isSongLiked(item.id)}
+                onDragStart={() => setDraggingIndex(index)}
+                onDragEnd={() => setDraggingIndex(null)}
+              />
             );
           }}
           ListEmptyComponent={
             <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor }]}>
-              <Ionicons name="musical-notes-outline" size={40} color={accentColor} />
-              <Text style={[styles.emptyTitle, { color: textColor }]}>Folder Is Empty</Text>
+              <Ionicons 
+                name={selectedPlaylist.isSmart ? "heart-outline" : "musical-notes-outline"} 
+                size={40} 
+                color={selectedPlaylist.isSmart ? "#FF2D55" : accentColor} 
+              />
+              <Text style={[styles.emptyTitle, { color: textColor }]}>
+                {selectedPlaylist.isSmart ? "No Liked Songs Yet" : "Folder Is Empty"}
+              </Text>
               <Text style={[styles.emptyDesc, { color: subtextColor }]}>
-                Tap "Add Songs" above to add offline tracks to this playlist.
+                {selectedPlaylist.isSmart 
+                  ? "Tap the heart icon on any song across Anti-Music to automatically pin it here."
+                  : 'Tap "Add Songs" above to add offline tracks to this playlist.'
+                }
               </Text>
             </View>
           }
@@ -531,6 +546,41 @@ export default function LibraryScreen() {
             keyExtractor={item => item.id}
             contentContainerStyle={[styles.listContent, { paddingBottom: currentlyPlayingSong ? 180 : 80 }]}
             showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={[styles.likedSongsCard, { backgroundColor: cardBg, borderColor }]}
+                onPress={() => setSelectedPlaylistId('__liked_songs__')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.likedHeartBox}>
+                  <Ionicons name="heart" size={26} color="#FF2D55" />
+                </View>
+
+                <View style={styles.folderMeta}>
+                  <Text style={[styles.folderTitle, { color: textColor }]} numberOfLines={1}>
+                    Liked Songs
+                  </Text>
+                  <Text style={[styles.folderCount, { color: subtextColor }]}>
+                    {likedSongs.length} favorites • Smart Playlist
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.quickPlayCircle}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    if (likedSongs.length > 0) {
+                      togglePlaySong(likedSongs[0], likedSongs);
+                    } else {
+                      alert("No liked songs yet! Tap the heart icon on any song to add it here.");
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="play" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            }
             renderItem={({ item }) => {
               return (
                 <TouchableOpacity
@@ -630,6 +680,21 @@ export default function LibraryScreen() {
                       {item.artist} {item.duration ? `• ${item.duration}` : ''}
                     </Text>
                   </View>
+
+                  <TouchableOpacity
+                    style={styles.heartRowBtn}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      toggleLikeSong(item.id);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons 
+                      name={isSongLiked(item.id) ? "heart" : "heart-outline"} 
+                      size={20} 
+                      color={isSongLiked(item.id) ? "#FF2D55" : subtextColor} 
+                    />
+                  </TouchableOpacity>
 
                   <View style={[
                     styles.actionPill, 
@@ -838,6 +903,47 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 24,
     gap: 10,
+  },
+  likedSongsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginBottom: 12,
+    shadowColor: '#FF2D55',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  likedHeartBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    backgroundColor: 'rgba(255, 45, 85, 0.15)',
+  },
+  quickPlayCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF2D55',
+    shadowColor: '#FF2D55',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heartRowBtn: {
+    padding: 8,
+    marginRight: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   folderCard: {
     flexDirection: 'row',

@@ -7,6 +7,9 @@ import uuid
 import glob
 import re
 import hashlib
+import json
+import urllib.request
+import urllib.parse
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -140,6 +143,62 @@ async def search_youtube(q: str, limit: int = 12):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+def clean_song_query(title: str, artist: str = "") -> str:
+    """Strip extraneous YouTube fluff like (Official Video), [4K], feat., etc."""
+    cleaned = title
+    cleaned = re.sub(r'\[.*?\]|\(.*?\)', '', cleaned)
+    cleaned = re.sub(r'(?i)\b(official\s+video|official\s+audio|lyrics|music\s+video|hd|4k|remastered|live|visualizer)\b', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    if artist and artist.lower() not in cleaned.lower() and "youtube" not in artist.lower():
+        return f"{artist} {cleaned}"
+    return cleaned
+
+@app.get("/lyrics")
+def get_lyrics(title: str, artist: str = ""):
+    if not title:
+        raise HTTPException(status_code=400, detail="Song title is required")
+        
+    query = clean_song_query(title, artist)
+    
+    try:
+        url = "https://lrclib.net/api/search?" + urllib.parse.urlencode({"q": query})
+        req = urllib.request.Request(url, headers={"User-Agent": "Anti-Music-App/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            
+        if not data or not isinstance(data, list):
+            return {"found": False, "message": "No lyrics found for this track", "lines": []}
+            
+        # Find best match: preference to entry with syncedLyrics
+        best = next((item for item in data if item.get("syncedLyrics")), data[0])
+        
+        synced_raw = best.get("syncedLyrics")
+        plain_raw = best.get("plainLyrics")
+        
+        parsed_lines = []
+        if synced_raw:
+            for line in synced_raw.splitlines():
+                m = re.match(r'\[(\d+):(\d+(?:\.\d+)?)\](.*)', line)
+                if m:
+                    mins = int(m.group(1))
+                    secs = float(m.group(2))
+                    text = m.group(3).strip()
+                    time_ms = int((mins * 60 + secs) * 1000)
+                    if text:
+                        parsed_lines.append({"timeMs": time_ms, "text": text})
+                        
+        return {
+            "found": True,
+            "isSynced": len(parsed_lines) > 0,
+            "trackName": best.get("trackName") or title,
+            "artistName": best.get("artistName") or artist,
+            "lines": parsed_lines,
+            "plainLyrics": plain_raw or ""
+        }
+    except Exception as e:
+        return {"found": False, "error": str(e), "lines": []}
+
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Anti-Music Backend is up and running!"}
+

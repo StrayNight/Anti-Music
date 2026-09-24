@@ -20,7 +20,9 @@ export default function MiniPlayer() {
     playNextSong,
     positionMillis, 
     durationMillis,
-    setIsPlayerExpanded 
+    setIsPlayerExpanded,
+    toggleLikeSong,
+    isSongLiked,
   } = useContext(PlaylistContext);
 
   if (!currentlyPlayingSong) return null;
@@ -72,6 +74,22 @@ export default function MiniPlayer() {
 
         {/* Transport Action Buttons */}
         <View style={styles.controlsRow}>
+          {/* Favorite Heart Button */}
+          <TouchableOpacity 
+            style={styles.heartBtn}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              toggleLikeSong(currentlyPlayingSong.id);
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons 
+              name={isSongLiked(currentlyPlayingSong.id) ? "heart" : "heart-outline"} 
+              size={21} 
+              color={isSongLiked(currentlyPlayingSong.id) ? "#FF2D55" : subtextColor} 
+            />
+          </TouchableOpacity>
+
           {/* Play/Pause */}
           <TouchableOpacity 
             style={[styles.playPill, { backgroundColor: accentColor }]}
@@ -172,6 +190,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   skipBtn: {
+    padding: 6,
+    borderRadius: 12,
+  },
+  heartBtn: {
     padding: 6,
     borderRadius: 12,
   },

@@ -22,6 +22,19 @@ export const PlaylistContext = createContext({
   isPlayerExpanded: false,
   sleepTimerRemaining: null,
   sleepTimerMinutes: null,
+  likedSongIds: [],
+  likedSongs: [],
+  toggleLikeSong: async () => {},
+  isSongLiked: () => false,
+  searchHistory: [],
+  addSearchQuery: async () => {},
+  removeSearchQuery: async () => {},
+  clearSearchHistory: async () => {},
+  downloadProgress: null,
+  startDownloadTracking: () => {},
+  updateDownloadTracking: () => {},
+  completeDownloadTracking: () => {},
+  cancelDownloadTracking: () => {},
   addSongToLibrary: async () => {},
   createPlaylist: async () => {},
   deletePlaylist: async () => {},
@@ -45,6 +58,15 @@ export const PlaylistContext = createContext({
 
 const PLAYLISTS_STORAGE_KEY = '@app_playlists_v2';
 const ALL_SONGS_STORAGE_KEY = '@app_all_songs_v2';
+const LIKED_SONGS_STORAGE_KEY = '@app_liked_song_ids_v1';
+const SEARCH_HISTORY_STORAGE_KEY = '@app_search_history_v1';
+
+const INITIAL_SEARCH_HISTORY = [
+  'Lofi hip hop',
+  'Synthwave chill',
+  'Coldplay',
+  'Daft Punk',
+];
 
 const INITIAL_SONGS = [
   { id: '1', title: 'Midnight City Dreams', artist: 'Synthwave Chill', duration: '3:45' },
@@ -79,6 +101,8 @@ const INITIAL_PLAYLISTS = [
 export const PlaylistProvider = ({ children }) => {
   const [allSongs, setAllSongs] = useState(INITIAL_SONGS);
   const [playlists, setPlaylists] = useState(INITIAL_PLAYLISTS);
+  const [likedSongIds, setLikedSongIds] = useState(['1', '3']); // Default initial favorites
+  const [searchHistory, setSearchHistory] = useState(INITIAL_SEARCH_HISTORY);
 
   // Playback State
   const [currentlyPlayingSong, setCurrentlyPlayingSong] = useState(null);
@@ -94,6 +118,53 @@ export const PlaylistProvider = ({ children }) => {
   const [sleepTimerRemaining, setSleepTimerRemaining] = useState(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(null);
   const timerIntervalRef = useRef(null);
+
+  // Global Download Tracking State: null | { isDownloading, songTitle, progress, stage, isComplete, isError }
+  const [downloadProgress, setDownloadProgress] = useState(null);
+  const downloadTimerRef = useRef(null);
+
+  const startDownloadTracking = (songTitle) => {
+    if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
+    setDownloadProgress({
+      isDownloading: true,
+      songTitle: songTitle || 'Audio Track',
+      progress: 20,
+      stage: 'Connecting to YouTube...',
+    });
+  };
+
+  const updateDownloadTracking = (progress, stage) => {
+    setDownloadProgress(prev => prev ? { ...prev, progress, stage } : null);
+  };
+
+  const completeDownloadTracking = (songTitle) => {
+    if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
+    setDownloadProgress({
+      isDownloading: false,
+      isComplete: true,
+      songTitle: songTitle || 'Audio Track',
+      progress: 100,
+      stage: 'Saved to Library',
+    });
+    setTimeout(() => {
+      setDownloadProgress(null);
+    }, 3200);
+  };
+
+  const cancelDownloadTracking = (errorMsg = null) => {
+    if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
+    if (errorMsg) {
+      setDownloadProgress({
+        isDownloading: false,
+        isError: true,
+        progress: 0,
+        stage: `Download failed: ${errorMsg}`,
+      });
+      setTimeout(() => setDownloadProgress(null), 3500);
+    } else {
+      setDownloadProgress(null);
+    }
+  };
 
   // Ref to hold current state inside audio status callbacks without stale closures
   const stateRef = useRef({
@@ -121,12 +192,17 @@ export const PlaylistProvider = ({ children }) => {
       try {
         const storedSongs = await AsyncStorage.getItem(ALL_SONGS_STORAGE_KEY);
         const storedPlaylists = await AsyncStorage.getItem(PLAYLISTS_STORAGE_KEY);
+        const storedLiked = await AsyncStorage.getItem(LIKED_SONGS_STORAGE_KEY);
+        const storedHistory = await AsyncStorage.getItem(SEARCH_HISTORY_STORAGE_KEY);
+
         if (storedSongs) {
           const parsed = JSON.parse(storedSongs);
           setAllSongs(parsed);
           setPlaybackQueue(parsed);
         }
         if (storedPlaylists) setPlaylists(JSON.parse(storedPlaylists));
+        if (storedLiked) setLikedSongIds(JSON.parse(storedLiked));
+        if (storedHistory) setSearchHistory(JSON.parse(storedHistory));
       } catch (e) {
         console.error("Failed to load playlist data", e);
       }
@@ -418,6 +494,45 @@ export const PlaylistProvider = ({ children }) => {
     await savePlaylists(updated);
   };
 
+  // Liked / Favorites System
+  const toggleLikeSong = async (songId) => {
+    if (!songId) return;
+    const isLiked = likedSongIds.includes(songId);
+    const updated = isLiked 
+      ? likedSongIds.filter(id => id !== songId) 
+      : [...likedSongIds, songId];
+    setLikedSongIds(updated);
+    await AsyncStorage.setItem(LIKED_SONGS_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const isSongLiked = (songId) => {
+    if (!songId) return false;
+    return likedSongIds.includes(songId);
+  };
+
+  const likedSongs = allSongs.filter(s => likedSongIds.includes(s.id));
+
+  // Search History System
+  const addSearchQuery = async (query) => {
+    if (!query || !query.trim()) return;
+    const trimmed = query.trim();
+    const filtered = searchHistory.filter(q => q.toLowerCase() !== trimmed.toLowerCase());
+    const updated = [trimmed, ...filtered].slice(0, 12);
+    setSearchHistory(updated);
+    await AsyncStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const removeSearchQuery = async (query) => {
+    const updated = searchHistory.filter(q => q !== query);
+    setSearchHistory(updated);
+    await AsyncStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const clearSearchHistory = async () => {
+    setSearchHistory([]);
+    await AsyncStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify([]));
+  };
+
   return (
     <PlaylistContext.Provider value={{
       allSongs,
@@ -431,6 +546,19 @@ export const PlaylistProvider = ({ children }) => {
       isPlayerExpanded,
       sleepTimerRemaining,
       sleepTimerMinutes,
+      likedSongIds,
+      likedSongs,
+      toggleLikeSong,
+      isSongLiked,
+      searchHistory,
+      addSearchQuery,
+      removeSearchQuery,
+      clearSearchHistory,
+      downloadProgress,
+      startDownloadTracking,
+      updateDownloadTracking,
+      completeDownloadTracking,
+      cancelDownloadTracking,
       addSongToLibrary,
       createPlaylist,
       deletePlaylist,

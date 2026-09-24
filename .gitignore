@@ -18,6 +18,7 @@ npm-debug.*
 backend/.venv/
 backend/__pycache__/
 backend/temp_downloads/
+backend/audio_cache/
 *.pyc
 *.pyo
 

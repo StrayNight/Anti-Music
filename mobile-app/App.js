@@ -17,6 +17,7 @@ import LibraryScreen from './src/screens/LibraryScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import MiniPlayer from './src/components/MiniPlayer';
 import FullScreenPlayer from './src/components/FullScreenPlayer';
+import DownloadIndicator from './src/components/DownloadIndicator';
 import { Ionicons } from '@expo/vector-icons';
 
 const TABS = [
@@ -103,6 +104,9 @@ const MainApp = () => {
           </Text>
         </View>
       </View>
+
+      {/* Global Floating Download Indicator Toast */}
+      <DownloadIndicator />
 
       {/* Screen Viewport: ONLY active screen exists in DOM (No piling up ever!) */}
       <View style={styles.screenContainer}>
