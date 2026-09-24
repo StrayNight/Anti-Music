@@ -238,7 +238,7 @@ export default function LibraryScreen() {
         <FlatList
           data={songs}
           keyExtractor={(item, index) => `${item.id}_${index}`}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: currentlyPlayingSong ? 180 : 80 }]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => {
             const isPlayingThis = currentlyPlayingSong?.id === item.id && isPlaying;
@@ -529,7 +529,7 @@ export default function LibraryScreen() {
           <FlatList
             data={playlists}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: currentlyPlayingSong ? 180 : 80 }]}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               return (
@@ -593,7 +593,7 @@ export default function LibraryScreen() {
           <FlatList
             data={allSongs}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: currentlyPlayingSong ? 180 : 80 }]}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const isPlayingThis = currentlyPlayingSong?.id === item.id && isPlaying;
@@ -845,6 +845,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 22,
     borderWidth: 1,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -883,6 +884,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 20,
     borderWidth: 1,
+    marginBottom: 10,
   },
   artworkSquare: {
     width: 44,
@@ -1038,6 +1040,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 20,
     borderWidth: 1,
+    marginBottom: 10,
   },
   orderBadge: {
     width: 24,

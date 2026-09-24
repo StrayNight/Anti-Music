@@ -77,7 +77,8 @@ export default function FullScreenPlayer() {
       onRequestClose={() => setIsPlayerExpanded(false)}
     >
       <View style={[styles.canvas, { backgroundColor: dominantColor }]}>
-        <SafeAreaView style={styles.safeContainer}>
+        <View style={styles.desktopWrapper}>
+          <SafeAreaView style={styles.safeContainer}>
           {/* Header Action Row */}
           <View style={styles.headerRow}>
             <TouchableOpacity 
@@ -255,6 +256,7 @@ export default function FullScreenPlayer() {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
+        </View>
       </View>
     </Modal>
   );
@@ -265,18 +267,30 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desktopWrapper: {
+    flex: 1,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 480 : '100%',
+    alignSelf: 'center',
+    height: '100%',
   },
   safeContainer: {
     flex: 1,
-    paddingHorizontal: 26,
+    width: '100%',
+    paddingHorizontal: Platform.OS === 'web' ? 32 : 24,
+    paddingTop: Platform.OS === 'web' ? 24 : 14,
+    paddingBottom: Platform.OS === 'web' ? 36 : 24,
     justifyContent: 'space-between',
-    paddingBottom: Platform.OS === 'web' ? 24 : 16,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'web' ? 10 : 6,
+    marginBottom: 8,
   },
   closeBtn: {
     width: 44,
@@ -339,6 +353,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+    paddingHorizontal: 6,
   },
   songTitle: {
     fontSize: 22,
@@ -361,9 +376,11 @@ const styles = StyleSheet.create({
   },
   scrubberSection: {
     marginBottom: 20,
+    paddingHorizontal: 6,
   },
   scrubberTrackWrapper: {
-    paddingVertical: 10,
+    paddingVertical: 12,
+    width: '100%',
   },
   scrubberBackground: {
     height: 5,

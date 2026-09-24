@@ -34,7 +34,7 @@ export default function SearchScreen() {
     isDark 
   } = useContext(ThemeContext);
 
-  const { addSongToLibrary, allSongs = [] } = useContext(PlaylistContext);
+  const { addSongToLibrary, allSongs = [], currentlyPlayingSong } = useContext(PlaylistContext);
 
   // Mode: 'search' | 'link'
   const [activeMode, setActiveMode] = useState('search');
@@ -206,7 +206,7 @@ export default function SearchScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: currentlyPlayingSong ? 180 : 60 }]} showsVerticalScrollIndicator={false}>
       
       {/* Apple-style Segmented Switcher: Search by Song vs Direct Link */}
       <View style={[styles.segmentContainer, { backgroundColor: cardBg, borderColor }]}>
