@@ -11,3 +11,4 @@ export const LOCAL_BACKEND_URL = Platform.OS === 'web' ? 'http://localhost:8000'
 export const getBackendUrl = () => {
   return CLOUD_BACKEND_URL;
 };
+
