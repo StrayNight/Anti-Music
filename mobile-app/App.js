@@ -52,21 +52,24 @@ const MainApp = () => {
     }
   }, [dominantColor]);
 
-  // Over-The-Air (OTA) Auto-Update Check on App Launch
+  // Over-The-Air (OTA) Auto-Update Check on App Launch (Non-blocking)
   useEffect(() => {
+    let timeoutId;
     async function checkAutoUpdates() {
       if (__DEV__ || Platform.OS === 'web') return;
       try {
+        if (!Updates.isEnabled) return;
         const update = await Updates.checkForUpdateAsync();
         if (update.isAvailable) {
           await Updates.fetchUpdateAsync();
-          Updates.reloadAsync();
         }
       } catch (err) {
-        console.log("OTA update check skipped:", err);
+        console.log("OTA update check skipped:", err?.message || err);
       }
     }
-    checkAutoUpdates();
+    // Defer check by 3 seconds to ensure UI mounts and initializes smoothly
+    timeoutId = setTimeout(checkAutoUpdates, 3000);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
