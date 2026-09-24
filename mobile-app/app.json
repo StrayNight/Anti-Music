@@ -54,9 +54,6 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0",
             "buildArchs": [
               "arm64-v8a",
               "armeabi-v7a"
