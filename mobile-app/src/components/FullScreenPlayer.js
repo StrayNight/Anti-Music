@@ -15,6 +15,7 @@ import {
 import { ThemeContext } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
 import { Ionicons } from '@expo/vector-icons';
+import { getBackendUrl } from '../services/apiConfig';
 
 export default function FullScreenPlayer() {
   const { dominantColor, surfaceColor, accentColor, isDark } = useContext(ThemeContext);
@@ -90,10 +91,6 @@ export default function FullScreenPlayer() {
   const [lyricsData, setLyricsData] = useState(null);
   const [isLyricsLoading, setIsLyricsLoading] = useState(false);
   const lyricsScrollRef = useRef(null);
-
-  const getBackendUrl = () => {
-    return Platform.OS === 'web' ? 'http://localhost:8000' : 'http://10.19.227.173:8000';
-  };
 
   const fetchLyrics = async (song) => {
     if (!song || !song.title) return;

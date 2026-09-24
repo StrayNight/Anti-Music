@@ -507,6 +507,16 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Cloud Server</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#10B981' }} />
+            <Text style={[styles.aboutValue, { color: '#10B981', fontWeight: '700' }]}>
+              anti-music.onrender.com (Online)
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
           <Text style={[styles.aboutLabel, { color: subtextColor }]}>Architecture</Text>
           <Text style={[styles.aboutValue, { color: textColor }]}>60-30-10 Dynamic Palette</Text>
         </View>

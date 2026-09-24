@@ -14,6 +14,7 @@ import * as FileSystem from 'expo-file-system';
 import { ThemeContext } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
 import { Ionicons } from '@expo/vector-icons';
+import { getBackendUrl } from '../services/apiConfig';
 
 const QUICK_TAGS = [
   'Lofi Beats',
@@ -72,10 +73,6 @@ export default function SearchScreen() {
     ? (isDark ? 'rgba(23, 27, 34, 0.88)' : 'rgba(255, 255, 255, 0.88)') 
     : surfaceColor;
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
-
-  const getBackendUrl = () => {
-    return Platform.OS === 'web' ? 'http://localhost:8000' : 'http://10.19.227.173:8000';
-  };
 
   const showAlert = (title, msg) => {
     if (Platform.OS === 'web') {
