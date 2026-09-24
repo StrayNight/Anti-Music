@@ -7,12 +7,14 @@ import {
   ScrollView, 
   TextInput,
   Switch,
-  Platform 
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { ThemeContext, PALETTE_PRESETS } from '../context/ThemeContext';
 import { PlaylistContext } from '../context/PlaylistContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import * as Updates from 'expo-updates';
 
 // Swatches for free customization
 const CANVAS_SWATCHES = ['#0B0D11', '#12141A', '#18181B', '#F2F2F7', '#FAF5EF', '#F0FDF4', '#11071F'];
@@ -61,6 +63,45 @@ export default function SettingsScreen() {
 
   const [customHex, setCustomHex] = useState('');
   const [activeCustomCategory, setActiveCustomCategory] = useState('accent');
+
+  // Over-The-Air Update State
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null);
+
+  const handleCheckUpdate = async () => {
+    if (Platform.OS === 'web' || __DEV__) {
+      setUpdateStatus({ type: 'info', msg: 'Running in live development mode.' });
+      setTimeout(() => setUpdateStatus(null), 3500);
+      return;
+    }
+
+    setIsCheckingUpdate(true);
+    setUpdateStatus(null);
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        setUpdateStatus({ type: 'downloading', msg: 'Downloading latest live update...' });
+        await Updates.fetchUpdateAsync();
+        setUpdateStatus({ type: 'ready', msg: '✓ Update downloaded! Tap to restart.' });
+      } else {
+        setUpdateStatus({ type: 'latest', msg: '✓ Your app is up to date!' });
+        setTimeout(() => setUpdateStatus(null), 3500);
+      }
+    } catch (e) {
+      setUpdateStatus({ type: 'error', msg: `Check failed: ${e.message || 'Offline'}` });
+      setTimeout(() => setUpdateStatus(null), 4000);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    try {
+      await Updates.reloadAsync();
+    } catch (e) {
+      alert("Failed to reload: " + e.message);
+    }
+  };
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
@@ -482,7 +523,86 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* -------------------- 6. ABOUT ANTI-MUSIC -------------------- */}
+      {/* -------------------- 6. OVER-THE-AIR LIVE UPDATES -------------------- */}
+      <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
+            <Ionicons name="cloud-download-outline" size={20} color={accentColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: textColor }]}>Live Updates (OTA)</Text>
+            <Text style={[styles.cardSubtitle, { color: subtextColor }]}>
+              Automatic live updates without reinstalling APK
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Update Channel</Text>
+          <Text style={[styles.aboutValue, { color: textColor }]}>production</Text>
+        </View>
+
+        <View style={styles.aboutInfoRow}>
+          <Text style={[styles.aboutLabel, { color: subtextColor }]}>Auto Check on Launch</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#10B981' }} />
+            <Text style={[styles.aboutValue, { color: '#10B981', fontWeight: '700' }]}>Active</Text>
+          </View>
+        </View>
+
+        {updateStatus && (
+          <View style={[
+            styles.updateStatusBanner, 
+            { 
+              backgroundColor: updateStatus.type === 'error' ? '#EF444420' : 
+                               updateStatus.type === 'downloading' ? '#F59E0B20' : '#10B98120',
+              borderColor: updateStatus.type === 'error' ? '#EF4444' : 
+                           updateStatus.type === 'downloading' ? '#F59E0B' : '#10B981'
+            }
+          ]}>
+            <Text style={[
+              styles.updateStatusText,
+              { 
+                color: updateStatus.type === 'error' ? '#EF4444' : 
+                       updateStatus.type === 'downloading' ? '#F59E0B' : '#10B981'
+              }
+            ]}>
+              {updateStatus.msg}
+            </Text>
+          </View>
+        )}
+
+        <View style={{ marginTop: 14, gap: 10 }}>
+          <TouchableOpacity 
+            style={[styles.secondaryActionBtn, { borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }]}
+            onPress={handleCheckUpdate}
+            disabled={isCheckingUpdate}
+            activeOpacity={0.8}
+          >
+            {isCheckingUpdate ? (
+              <ActivityIndicator size="small" color={accentColor} style={{ marginRight: 8 }} />
+            ) : (
+              <Ionicons name="refresh-outline" size={17} color={accentColor} style={{ marginRight: 6 }} />
+            )}
+            <Text style={[styles.secondaryActionText, { color: textColor }]}>
+              {isCheckingUpdate ? 'Checking for live updates...' : 'Check for Live Updates'}
+            </Text>
+          </TouchableOpacity>
+
+          {updateStatus?.type === 'ready' && (
+            <TouchableOpacity 
+              style={[styles.applyUpdateBtn, { backgroundColor: accentColor }]}
+              onPress={handleApplyUpdate}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="flash" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.applyUpdateBtnText}>Restart App to Apply Update</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* -------------------- 7. ABOUT ANTI-MUSIC -------------------- */}
       <View style={[styles.appleCard, { backgroundColor: cardBg, borderColor, marginTop: 18 }]}>
         <View style={styles.cardHeaderRow}>
           <View style={[styles.iconCircle, { backgroundColor: accentColor + '20' }]}>
@@ -854,4 +974,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  updateStatusBanner: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  updateStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  applyUpdateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  applyUpdateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
+

@@ -18,6 +18,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import MiniPlayer from './src/components/MiniPlayer';
 import FullScreenPlayer from './src/components/FullScreenPlayer';
 import DownloadIndicator from './src/components/DownloadIndicator';
+import * as Updates from 'expo-updates';
 import { Ionicons } from '@expo/vector-icons';
 
 const TABS = [
@@ -50,6 +51,23 @@ const MainApp = () => {
       }
     }
   }, [dominantColor]);
+
+  // Over-The-Air (OTA) Auto-Update Check on App Launch
+  useEffect(() => {
+    async function checkAutoUpdates() {
+      if (__DEV__ || Platform.OS === 'web') return;
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          Updates.reloadAsync();
+        }
+      } catch (err) {
+        console.log("OTA update check skipped:", err);
+      }
+    }
+    checkAutoUpdates();
+  }, []);
 
   const textColor = isDark ? '#FFFFFF' : '#1C1C1E';
   const subtextColor = isDark ? '#A1A1AA' : '#8E8E93';
